@@ -1,4 +1,4 @@
-from flask import Flask, request, abort
+from fastapi import FastAPI, Request, HTTPException
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
@@ -6,8 +6,9 @@ from linebot.models import (
     FollowEvent, FlexMessage, FlexSendMessage
 )
 import os
+from starlette.responses import PlainTextResponse
 
-app = Flask(__name__)
+app = FastAPI()
 
 # Azure App Serviceの環境変数から読み込み
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv('LINE_CHANNEL_ACCESS_TOKEN', None)
@@ -16,21 +17,22 @@ LINE_CHANNEL_SECRET = os.getenv('LINE_CHANNEL_SECRET', None)
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-@app.route("/")
-def hello():
-    return "LINE Bot is running!"
+@app.get("/")
+async def root():
+    return PlainTextResponse("LINE Bot is running!")
 
-@app.route("/callback", methods=['POST'])
-def callback():
-    signature = request.headers['X-Line-Signature']
-    body = request.get_data(as_text=True)
+@app.post("/callback")
+async def callback(request: Request):
+    signature = request.headers.get('X-Line-Signature', '')
+    body = await request.body()
+    body = body.decode('utf-8')
     
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
-        abort(400)
+        raise HTTPException(status_code=400, detail="Invalid signature")
     
-    return 'OK'
+    return PlainTextResponse('OK')
 
 @handler.add(FollowEvent)
 def handle_follow(event):
@@ -62,3 +64,8 @@ def handle_message(event):
         event.reply_token,
         TextSendMessage(text=reply_text)
     )
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get('PORT', 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
