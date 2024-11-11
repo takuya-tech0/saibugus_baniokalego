@@ -62,6 +62,3 @@ def handle_message(event):
         event.reply_token,
         TextSendMessage(text=reply_text)
     )
-
-if __name__ == "__main__":
-    app.run()
